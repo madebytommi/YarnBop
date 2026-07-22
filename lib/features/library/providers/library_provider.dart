@@ -6,7 +6,8 @@ final localStorageProvider = Provider<LocalStorageService>((ref) {
   return LocalStorageService();
 });
 
-final libraryNotifierProvider = StateNotifierProvider<LibraryNotifier, List<ProjectModel>>((ref) {
+final libraryNotifierProvider =
+    StateNotifierProvider<LibraryNotifier, List<ProjectModel>>((ref) {
   final storage = ref.watch(localStorageProvider);
   return LibraryNotifier(storage);
 });
@@ -18,25 +19,22 @@ class LibraryNotifier extends StateNotifier<List<ProjectModel>> {
     loadProjects();
   }
 
-  Future<void> loadProjects() async {
-    state = await _storage.loadProjects();
+  void loadProjects() {
+    state = _storage.getAllProjects();
   }
 
   Future<void> addProject(ProjectModel project) async {
-    state = [...state, project];
-    await _storage.saveSingleProject(project);
+    await _storage.saveProject(project);
+    loadProjects();
   }
 
   Future<void> updateProject(ProjectModel updatedProject) async {
-    state = [
-      for (final p in state)
-        if (p.id == updatedProject.id) updatedProject else p
-    ];
-    await _storage.saveSingleProject(updatedProject);
+    await _storage.saveProject(updatedProject);
+    loadProjects();
   }
 
   Future<void> deleteProject(String id) async {
-    state = state.where((p) => p.id != id).toList();
-    await _storage.saveProjects(state);
+    await _storage.deleteProject(id);
+    loadProjects();
   }
 }

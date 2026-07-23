@@ -23,6 +23,16 @@ class ProjectModel {
     required this.lastAccessedAt,
   });
 
+  factory ProjectModel.empty(String id) {
+    return ProjectModel(
+      id: id,
+      title: 'New Pattern',
+      pdfPath: '',
+      createdAt: DateTime.now(),
+      lastAccessedAt: DateTime.now(),
+    );
+  }
+
   ProjectModel copyWith({
     String? id,
     String? title,

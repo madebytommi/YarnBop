@@ -1,8 +1,10 @@
 import 'package:file_picker/file_picker.dart';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/models/project_model.dart';
+import '../../../../core/storage/local_storage_service.dart';
 import '../../../pattern_rows/presentation/screens/text_import_screen.dart';
 import '../../../pdf_reader/presentation/screens/pdf_reader_screen.dart';
 import '../../providers/library_provider.dart';
@@ -102,15 +104,18 @@ class LibraryScreen extends ConsumerWidget {
 
       if (result != null && result.files.single.path != null) {
         final file = result.files.single;
-        final String filePath = file.path!;
-        final String fileName = file.name.replaceAll('.pdf', '');
+        final String originalFilePath = file.path!;
+        final String fileName = file.name;
+        final String fileTitle = fileName.replaceAll('.pdf', '');
+        
+        // Ensure unique filename and copy to app documents directory
+        final String newRelativePath = '${DateTime.now().millisecondsSinceEpoch}_$fileName';
+        final String targetAbsolutePath = '${LocalStorageService.appDocDirPath}/$newRelativePath';
+        await File(originalFilePath).copy(targetAbsolutePath);
 
-        final newProject = ProjectModel(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
-          title: fileName.isNotEmpty ? fileName : 'Pattern Project',
-          pdfPath: filePath,
-          createdAt: DateTime.now(),
-          lastAccessedAt: DateTime.now(),
+        final newProject = ProjectModel.empty(DateTime.now().millisecondsSinceEpoch.toString()).copyWith(
+          title: fileTitle.isNotEmpty ? fileTitle : 'Pattern Project',
+          pdfPath: newRelativePath,
         );
 
         // Save to Hive

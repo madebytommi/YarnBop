@@ -1,5 +1,7 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:path_provider/path_provider.dart';
 import '../models/project_model.dart';
 import '../../features/pattern_rows/data/models/pattern_row.dart';
 
@@ -8,17 +10,30 @@ class LocalStorageService {
   static const String projectsBoxName = 'projects_box';
   static const String patternRowsBoxName = 'pattern_rows_box';
 
+  static late String appDocDirPath;
+
   Box get _box => Hive.box(projectsBoxName);
   Box get _patternRowsBox => Hive.box(patternRowsBoxName);
 
   /// Initializes Hive Flutter and opens the projects and pattern rows boxes.
   static Future<void> initHive() async {
+    final dir = await getApplicationDocumentsDirectory();
+    appDocDirPath = dir.path;
+
     await Hive.initFlutter();
     if (!Hive.isAdapterRegistered(1)) {
       Hive.registerAdapter(PatternRowAdapter());
     }
     await Hive.openBox(projectsBoxName);
     await Hive.openBox(patternRowsBoxName);
+  }
+
+  /// Reconstructs the absolute path from a stored relative path or filename.
+  static String getAbsolutePdfPath(String relativePath) {
+    if (relativePath.isEmpty) return '';
+    // If it's already an absolute path (legacy support), return it
+    if (File(relativePath).isAbsolute) return relativePath;
+    return '$appDocDirPath/$relativePath';
   }
 
   /// Retrieves saved pattern rows by project ID from Hive.
@@ -85,15 +100,7 @@ class LocalStorageService {
     required int stitchCount,
   }) async {
     final existing = getProject(projectId);
-    final updated = (existing ??
-            ProjectModel(
-              id: projectId,
-              title: 'Pattern Project',
-              pdfPath: '',
-              createdAt: DateTime.now(),
-              lastAccessedAt: DateTime.now(),
-            ))
-        .copyWith(
+    final updated = (existing ?? ProjectModel.empty(projectId)).copyWith(
       currentRow: rowCount,
       currentStitch: stitchCount,
       lastAccessedAt: DateTime.now(),
@@ -107,15 +114,7 @@ class LocalStorageService {
     required double highlighterY,
   }) async {
     final existing = getProject(projectId);
-    final updated = (existing ??
-            ProjectModel(
-              id: projectId,
-              title: 'Pattern Project',
-              pdfPath: '',
-              createdAt: DateTime.now(),
-              lastAccessedAt: DateTime.now(),
-            ))
-        .copyWith(
+    final updated = (existing ?? ProjectModel.empty(projectId)).copyWith(
       highlighterY: highlighterY,
       lastAccessedAt: DateTime.now(),
     );
@@ -128,15 +127,7 @@ class LocalStorageService {
     required int currentPage,
   }) async {
     final existing = getProject(projectId);
-    final updated = (existing ??
-            ProjectModel(
-              id: projectId,
-              title: 'Pattern Project',
-              pdfPath: '',
-              createdAt: DateTime.now(),
-              lastAccessedAt: DateTime.now(),
-            ))
-        .copyWith(
+    final updated = (existing ?? ProjectModel.empty(projectId)).copyWith(
       currentPage: currentPage,
       lastAccessedAt: DateTime.now(),
     );

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/models/project_model.dart';
+import '../../../../core/storage/local_storage_service.dart';
 import '../../../counters/presentation/widgets/overlay_counter_widget.dart';
 import '../../../counters/providers/counter_provider.dart';
 import '../../../highlighter/presentation/widgets/line_highlighter_widget.dart';
@@ -34,13 +35,7 @@ class _PdfReaderScreenState extends ConsumerState<PdfReaderScreen> {
       final projects = ref.read(libraryNotifierProvider);
       final project = projects.firstWhere(
         (element) => element.id == widget.projectId,
-        orElse: () => ProjectModel(
-          id: widget.projectId,
-          title: 'Pattern Viewer',
-          pdfPath: '',
-          createdAt: DateTime.now(),
-          lastAccessedAt: DateTime.now(),
-        ),
+        orElse: () => ProjectModel.empty(widget.projectId),
       );
 
       setState(() {
@@ -167,7 +162,7 @@ class _PdfReaderScreenState extends ConsumerState<PdfReaderScreen> {
             // LAYER 1 (Bottom): PDF Viewer Canvas
             PdfViewerCanvas(
               projectId: widget.projectId,
-              pdfPath: _project?.pdfPath ?? '',
+              pdfPath: LocalStorageService.getAbsolutePdfPath(_project?.pdfPath ?? ''),
               initialPage: _project?.currentPage ?? 1,
             ),
 

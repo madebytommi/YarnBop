@@ -41,22 +41,6 @@ class _PdfReaderScreenState extends ConsumerState<PdfReaderScreen> {
       setState(() {
         _project = project;
       });
-
-      // Initialize page state
-      ref
-          .read(pdfReaderNotifierProvider(widget.projectId).notifier)
-          .initPage(project.currentPage);
-
-      // Initialize counter state
-      ref.read(counterNotifierProvider(widget.projectId).notifier).init(
-            initialRow: project.currentRow,
-            initialStitch: project.currentStitch,
-          );
-
-      // Initialize line highlighter Y position
-      ref
-          .read(highlighterYProvider(widget.projectId).notifier)
-          .initY(project.highlighterY);
     });
   }
 
@@ -97,7 +81,6 @@ class _PdfReaderScreenState extends ConsumerState<PdfReaderScreen> {
           leading: IconButton(
             icon: const Icon(Icons.arrow_back, color: Colors.white),
             onPressed: () {
-              _saveProgress();
               Navigator.pop(context);
             },
           ),
@@ -173,7 +156,6 @@ class _PdfReaderScreenState extends ConsumerState<PdfReaderScreen> {
                 ref
                     .read(highlighterYProvider(widget.projectId).notifier)
                     .updateDelta(deltaY);
-                _saveProgress();
               },
             ),
 
@@ -188,25 +170,21 @@ class _PdfReaderScreenState extends ConsumerState<PdfReaderScreen> {
                   ref
                       .read(counterNotifierProvider(widget.projectId).notifier)
                       .incrementRow();
-                  _saveProgress();
                 },
                 onDecrementRow: () {
                   ref
                       .read(counterNotifierProvider(widget.projectId).notifier)
                       .decrementRow();
-                  _saveProgress();
                 },
                 onIncrementStitch: () {
                   ref
                       .read(counterNotifierProvider(widget.projectId).notifier)
                       .incrementStitch();
-                  _saveProgress();
                 },
                 onDecrementStitch: () {
                   ref
                       .read(counterNotifierProvider(widget.projectId).notifier)
                       .decrementStitch();
-                  _saveProgress();
                 },
               ),
             ),

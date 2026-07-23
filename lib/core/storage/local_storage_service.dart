@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -11,6 +12,8 @@ class LocalStorageService {
   static const String patternRowsBoxName = 'pattern_rows_box';
 
   static late String appDocDirPath;
+  
+  static final Map<String, Future<void>> _saveLocks = {};
 
   Box get _box => Hive.box(projectsBoxName);
   Box get _patternRowsBox => Hive.box(patternRowsBoxName);
@@ -93,44 +96,68 @@ class LocalStorageService {
     return list;
   }
 
-  /// Auto-saves row and stitch counts directly into Hive.
+  /// Atomically updates a project model to prevent race conditions during rapid saves.
+  Future<void> updateProjectAtomic(
+    String projectId,
+    ProjectModel Function(ProjectModel) updater,
+  ) async {
+    while (_saveLocks[projectId] != null) {
+      await _saveLocks[projectId];
+    }
+    final completer = Completer<void>();
+    _saveLocks[projectId] = completer.future;
+
+    try {
+      final existing = getProject(projectId) ?? ProjectModel.empty(projectId);
+      final updated = updater(existing);
+      await saveProject(updated);
+    } finally {
+      _saveLocks.remove(projectId);
+      completer.complete();
+    }
+  }
+
+  /// Auto-saves row and stitch counts securely via the atomic lock.
   Future<void> autoSaveCounters({
     required String projectId,
     required int rowCount,
     required int stitchCount,
   }) async {
-    final existing = getProject(projectId);
-    final updated = (existing ?? ProjectModel.empty(projectId)).copyWith(
-      currentRow: rowCount,
-      currentStitch: stitchCount,
-      lastAccessedAt: DateTime.now(),
+    await updateProjectAtomic(
+      projectId,
+      (existing) => existing.copyWith(
+        currentRow: rowCount,
+        currentStitch: stitchCount,
+        lastAccessedAt: DateTime.now(),
+      ),
     );
-    await saveProject(updated);
   }
 
-  /// Auto-saves highlighter Y position directly into Hive.
+  /// Auto-saves highlighter Y position securely via the atomic lock.
   Future<void> autoSaveHighlighterY({
     required String projectId,
     required double highlighterY,
   }) async {
-    final existing = getProject(projectId);
-    final updated = (existing ?? ProjectModel.empty(projectId)).copyWith(
-      highlighterY: highlighterY,
-      lastAccessedAt: DateTime.now(),
+    await updateProjectAtomic(
+      projectId,
+      (existing) => existing.copyWith(
+        highlighterY: highlighterY,
+        lastAccessedAt: DateTime.now(),
+      ),
     );
-    await saveProject(updated);
   }
 
-  /// Auto-saves active PDF page index directly into Hive.
+  /// Auto-saves active PDF page index securely via the atomic lock.
   Future<void> autoSaveCurrentPage({
     required String projectId,
     required int currentPage,
   }) async {
-    final existing = getProject(projectId);
-    final updated = (existing ?? ProjectModel.empty(projectId)).copyWith(
-      currentPage: currentPage,
-      lastAccessedAt: DateTime.now(),
+    await updateProjectAtomic(
+      projectId,
+      (existing) => existing.copyWith(
+        currentPage: currentPage,
+        lastAccessedAt: DateTime.now(),
+      ),
     );
-    await saveProject(updated);
   }
 }

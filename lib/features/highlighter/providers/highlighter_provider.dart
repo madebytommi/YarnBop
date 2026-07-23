@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/storage/local_storage_service.dart';
 import '../../library/providers/library_provider.dart';
@@ -12,6 +13,7 @@ final highlighterYProvider =
 class HighlighterNotifier extends StateNotifier<double> {
   final LocalStorageService _storage;
   final String _projectId;
+  Timer? _debounce;
 
   HighlighterNotifier(this._storage, this._projectId) : super(0.0) {
     _initFromHive();
@@ -22,6 +24,12 @@ class HighlighterNotifier extends StateNotifier<double> {
     if (saved != null) {
       state = saved.highlighterY;
     }
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    super.dispose();
   }
 
   void initY(double initialY) {
@@ -35,18 +43,22 @@ class HighlighterNotifier extends StateNotifier<double> {
   void setY(double newY) {
     final nextY = newY < 0 ? 0.0 : newY;
     state = nextY;
-    _storage.autoSaveHighlighterY(
-      projectId: _projectId,
-      highlighterY: nextY,
-    );
+    _scheduleSave();
   }
 
   void updateDelta(double deltaY) {
     final nextY = (state + deltaY) >= 0 ? (state + deltaY) : 0.0;
     state = nextY;
-    _storage.autoSaveHighlighterY(
-      projectId: _projectId,
-      highlighterY: nextY,
-    );
+    _scheduleSave();
+  }
+
+  void _scheduleSave() {
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+    _debounce = Timer(const Duration(milliseconds: 300), () {
+      _storage.autoSaveHighlighterY(
+        projectId: _projectId,
+        highlighterY: state,
+      );
+    });
   }
 }

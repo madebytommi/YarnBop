@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/app_colors.dart';
@@ -22,6 +23,7 @@ class TextImportScreen extends ConsumerStatefulWidget {
 
 class _TextImportScreenState extends ConsumerState<TextImportScreen> {
   final TextEditingController _textController = TextEditingController();
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -31,9 +33,8 @@ class _TextImportScreenState extends ConsumerState<TextImportScreen> {
 
   void _generatePattern() async {
     final rawText = _textController.text;
-    final parsedRows = parsePatternRows(rawText);
 
-    if (parsedRows.isEmpty) {
+    if (rawText.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please enter or paste pattern text with at least one valid line.'),
@@ -43,19 +44,45 @@ class _TextImportScreenState extends ConsumerState<TextImportScreen> {
       return;
     }
 
-    // Save parsed list to Riverpod state & Hive
-    await ref
-        .read(patternRowsNotifierProvider(widget.projectId).notifier)
-        .setRows(parsedRows);
+    setState(() {
+      _isLoading = true;
+    });
 
-    if (mounted) {
-      // Navigate to interactive pattern row viewer screen
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => TextPatternViewerScreen(projectId: widget.projectId),
-        ),
-      );
+    try {
+      final parsedRows = await compute(parsePatternRows, rawText);
+
+      if (parsedRows.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Please enter or paste pattern text with at least one valid line.'),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Save parsed list to Riverpod state & Hive
+      await ref
+          .read(patternRowsNotifierProvider(widget.projectId).notifier)
+          .setRows(parsedRows);
+
+      if (mounted) {
+        // Navigate to interactive pattern row viewer screen
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => TextPatternViewerScreen(projectId: widget.projectId),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -145,10 +172,11 @@ class _TextImportScreenState extends ConsumerState<TextImportScreen> {
             const SizedBox(height: 20.0),
             // 'Generate Pattern' Button
             ElevatedButton(
-              onPressed: _generatePattern,
+              onPressed: _isLoading ? null : _generatePattern,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primaryBlue, // #1DA1F2
                 foregroundColor: Colors.white,
+                disabledBackgroundColor: AppColors.primaryBlue.withValues(alpha: 0.5),
                 padding: const EdgeInsets.symmetric(vertical: 14.0),
                 elevation: 2.0,
                 shape: RoundedRectangleBorder(
@@ -156,20 +184,29 @@ class _TextImportScreenState extends ConsumerState<TextImportScreen> {
                   borderRadius: BorderRadius.circular(4.0),
                 ),
               ),
-              child: const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.auto_awesome, size: 20),
-                  SizedBox(width: 8),
-                  Text(
-                    'Generate Pattern',
-                    style: TextStyle(
-                      fontSize: 16.0,
-                      fontWeight: FontWeight.bold,
+              child: _isLoading
+                  ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2.0,
+                      ),
+                    )
+                  : const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.auto_awesome, size: 20),
+                        SizedBox(width: 8),
+                        Text(
+                          'Generate Pattern',
+                          style: TextStyle(
+                            fontSize: 16.0,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
-              ),
             ),
           ],
         ),

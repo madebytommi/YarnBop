@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 import '../models/project_model.dart';
@@ -18,7 +19,7 @@ class LocalStorageService {
   Box get _box => Hive.box(projectsBoxName);
   Box get _patternRowsBox => Hive.box(patternRowsBoxName);
 
-  /// Initializes Hive Flutter and opens the projects and pattern rows boxes.
+  /// Initializes Hive Flutter and opens the projects and pattern rows boxes with AES encryption.
   static Future<void> initHive() async {
     final dir = await getApplicationDocumentsDirectory();
     appDocDirPath = dir.path;
@@ -27,8 +28,45 @@ class LocalStorageService {
     if (!Hive.isAdapterRegistered(1)) {
       Hive.registerAdapter(PatternRowAdapter());
     }
-    await Hive.openBox(projectsBoxName);
-    await Hive.openBox(patternRowsBoxName);
+
+    // Set up Secure Storage for the encryption key
+    const secureStorage = FlutterSecureStorage();
+    List<int> encryptionKey;
+    
+    try {
+      final keyString = await secureStorage.read(key: 'hive_encryption_key');
+      if (keyString == null) {
+        final key = Hive.generateSecureKey();
+        await secureStorage.write(
+          key: 'hive_encryption_key',
+          value: base64UrlEncode(key),
+        );
+        encryptionKey = key;
+      } else {
+        encryptionKey = base64Url.decode(keyString);
+      }
+    } catch (e) {
+      // Fallback if Keystore fails (common Android edge case)
+      encryptionKey = Hive.generateSecureKey();
+    }
+
+    final cipher = HiveAesCipher(encryptionKey);
+
+    // Open projects box (delete and recreate if legacy unencrypted data exists)
+    try {
+      await Hive.openBox(projectsBoxName, encryptionCipher: cipher);
+    } catch (e) {
+      await Hive.deleteBoxFromDisk(projectsBoxName);
+      await Hive.openBox(projectsBoxName, encryptionCipher: cipher);
+    }
+
+    // Open pattern rows box (delete and recreate if legacy unencrypted data exists)
+    try {
+      await Hive.openBox(patternRowsBoxName, encryptionCipher: cipher);
+    } catch (e) {
+      await Hive.deleteBoxFromDisk(patternRowsBoxName);
+      await Hive.openBox(patternRowsBoxName, encryptionCipher: cipher);
+    }
   }
 
   /// Reconstructs the absolute path from a stored relative path or filename.
